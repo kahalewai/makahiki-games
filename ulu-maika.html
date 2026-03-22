@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ʻUlu Maika - Makahiki Games</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#1a1a2e;font-family:monospace;touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+canvas{display:block;margin:0 auto;image-rendering:pixelated;image-rendering:crisp-edges}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const canvas=document.getElementById('game');
+const ctx=canvas.getContext('2d');
+const GW=320,GH=480;
+let scale=1;
+
+function resize(){
+  const w=window.innerWidth,h=window.innerHeight;
+  scale=Math.min(w/GW,h/GH);
+  canvas.width=GW;canvas.height=GH;
+  canvas.style.width=(GW*scale)+'px';
+  canvas.style.height=(GH*scale)+'px';
+  canvas.style.marginTop=((h-GH*scale)/2)+'px';
+}
+resize();
+window.addEventListener('resize',resize);
+
+// ====== CONSTANTS ======
+const S={TITLE:0,MODE:1,AIM:2,ROLLING:3,STOPPING:4,GAMEOVER:5,FACT:6,HIGHSCORE:7};
+const M={PRECISION:0,DISTANCE:1};
+
+// Distance: 1 pixel = 0.3 feet (so max ~450px travel = ~135 feet, full power ~250 yards = 750 feet)
+const PX_TO_FEET=0.8;
+
+// ====== STATE ======
+let state=S.TITLE;
+let mode=M.PRECISION;
+let score=0,rolls=0,MAX_ROLLS=5;
+let resultTimer=0,resultText='',resultColor='',resultSub='';
+let selectedFactIndex=0;
+let returnFromHighScore=S.AIM; // state to return to after closing high scores
+
+// ====== HIGH SCORES ======
+let highScores={precision:[],distance:[]};
+function saveHighScore(){
+  const list=mode===M.PRECISION?highScores.precision:highScores.distance;
+  list.push(score);
+  list.sort((a,b)=>b-a);
+  if(list.length>5) list.length=5;
+}
+
+// ====== FACTS ======
+const facts=[
+  {title:"The Kahua Maika",text:["ʻUlu Maika courses (Kahua)","stretched up to a mile long,","smooth, hard-packed trenches,","sometimes with slight turns,","engineered to challenge","each player."]},
+  {title:"Kamehameha I",text:["The great king loved to throw","the Maika stone, along with","hurling spears and riding","waves. The games built","strength worthy of a ruler."]},
+  {title:"The Crowds",text:["Two to three thousand people","gathered to watch. They","wagered everything, property,","tools, and goods/foods,","on a single throw."]},
+  {title:"The Stone",text:["Originally rolled from ʻulu","(breadfruit). The polished","biconvex disc came later,","stone, coral, wood, even","olivine and lava."]},
+  {title:"Professional Athletes",text:["From these disc-rolling","contests, the fastest runners","were identified. Players","chased their rolling stones","at full speed."]},
+];
+
+// ====== STONE ======
+let stone={x:GW/2,y:400,vx:0,vy:0,r:10,rolling:false,scored:false,rot:0};
+
+// ====== PRECISION ======
+const STAKE_GAP=50,STAKE_Y=130;
+const sL=GW/2-STAKE_GAP/2,sR=GW/2+STAKE_GAP/2;
+
+// ====== DISTANCE ======
+let distCamera=0,distMarkers=[],bestDist=0,currentDist=0;
+const distStartY=400;
+
+// ====== INPUT ======
+let swipeStart=null,swipeEnd=null,isDrag=false;
+
+// ====== EFFECTS ======
+let particles=[],chants=[],celebParticles=[],chantCooldown=0;
+
+// ====== CLOUDS ======
+const clouds=[{x:40,y:14,w:45,s:0.15},{x:150,y:8,w:35,s:0.1},{x:240,y:18,w:50,s:0.12}];
+
+// ====== FLOWERS ======
+const flowers=[];
+for(let i=0;i<25;i++){
+  flowers.push({x:Math.random()*GW,y:108+Math.random()*(GH-150),t:Math.floor(Math.random()*4),s:2+Math.random()*3});
+}
+
+// ====== CROWD ======
+const crowdBottom=[];
+for(let i=0;i<20;i++){
+  crowdBottom.push(makePerson(8+i*16+(Math.random()*6-3)));
+}
+const crowdLeft=[];
+for(let i=0;i<6;i++){
+  crowdLeft.push(makePerson(2+Math.random()*20));
+}
+const crowdRight=[];
+for(let i=0;i<6;i++){
+  crowdRight.push(makePerson(GW-25+Math.random()*20));
+}
+
+function makePerson(x){
+  return{
+    x:x,
+    h:8+Math.random()*6,
+    color:['#8B4513','#A0522D','#6D4C41','#795548','#D2691E'][Math.floor(Math.random()*5)],
+    skin:['#C68642','#8D5524','#E0AC69','#F1C27D'][Math.floor(Math.random()*4)],
+    bobSpeed:1+Math.random()*2,
+    bobOff:Math.random()*Math.PI*2,
+    armUp:false
+  };
+}
+
+// ====== PIXEL HELPERS ======
+function pRect(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.floor(x),Math.floor(y),w,h);}
+function pCircle(cx,cy,r,c){
+  ctx.fillStyle=c;
+  for(let py=-r;py<=r;py++)for(let px=-r;px<=r;px++)
+    if(px*px+py*py<=r*r)ctx.fillRect(Math.floor(cx+px),Math.floor(cy+py),1,1);
+}
+// Hawaiian triangle border - traditional tattoo pattern
+function drawTriangleBorder(x1,x2,y,pointUp,color){
+  ctx.fillStyle=color||'#8B4513';
+  const h=pointUp?6:-6;
+  for(let x=x1;x<x2-10;x+=12){
+    ctx.beginPath();
+    ctx.moveTo(x,y);
+    ctx.lineTo(x+10,y);
+    ctx.lineTo(x+5,y+h);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+function drawTikiBorder(x1,x2,y){
+  pRect(x1,y,x2-x1,3,'#A0522D');
+  drawTriangleBorder(x1,x2,y+7,true,'#8B4513');
+}
+
+// ====== BICONVEX STONE ======
+function drawStone(sx,sy,r,rot){
+  const fx=Math.floor(sx),fy=Math.floor(sy);
+  pCircle(fx+2,fy+2,r,'rgba(0,0,0,0.25)');
+  pCircle(fx,fy,r,'#555');
+  pCircle(fx,fy,r-1,'#6E6E6E');
+  pCircle(fx,fy,r-3,'#808080');
+  pCircle(fx,fy,r-5,'#8A8A8A');
+  pCircle(fx,fy,Math.max(2,r-7),'#969696');
+  if(r>6)pCircle(fx-Math.floor(r*0.25),fy-Math.floor(r*0.25),Math.max(1,Math.floor(r*0.2)),'#A8A8A8');
+  const lx=Math.cos(rot)*r*0.6,ly=Math.sin(rot)*r*0.6;
+  ctx.fillStyle='#5A5A5A';
+  ctx.fillRect(Math.floor(fx+lx),Math.floor(fy+ly),2,2);
+  ctx.fillRect(Math.floor(fx-lx),Math.floor(fy-ly),2,2);
+}
+
+// ====== HAWAIIAN LANDSCAPE ======
+function drawHawaiianSky(){
+  const cols=['#5BA3D9','#6BB0E0','#7BBDE7','#8BCAEE','#9FD4F2'];
+  for(let i=0;i<cols.length;i++)pRect(0,i*18,GW,19,cols[i]);
+}
+
+function drawOcean(){
+  // Full width ocean band at horizon
+  const oy=52;
+  pRect(0,oy,GW,10,'#1565C0');
+  pRect(0,oy+3,GW,12,'#1E88E5');
+  pRect(0,oy+8,GW,14,'#2196F3');
+  pRect(0,oy+15,GW,10,'#42A5F5');
+  // Wave highlights
+  for(let i=0;i<12;i++){
+    const wx=10+i*28+(Math.sin(Date.now()/1200+i*1.3)*4);
+    const wy=oy+6+((i*3)%12);
+    pRect(wx,wy,10,1,'#90CAF9');
+    pRect(wx+3,wy+2,6,1,'#BBDEFB');
+  }
+}
+
+function drawMountains(){
+  // Left mountain range
+  ctx.fillStyle='#2E7D32';
+  ctx.beginPath();
+  ctx.moveTo(0,95);ctx.lineTo(0,60);ctx.lineTo(20,42);ctx.lineTo(45,30);
+  ctx.lineTo(70,38);ctx.lineTo(95,50);ctx.lineTo(120,65);ctx.lineTo(145,80);ctx.lineTo(160,95);
+  ctx.closePath();ctx.fill();
+  // Lighter front ridge
+  ctx.fillStyle='#388E3C';
+  ctx.beginPath();
+  ctx.moveTo(0,95);ctx.lineTo(10,68);ctx.lineTo(30,48);ctx.lineTo(50,35);
+  ctx.lineTo(70,42);ctx.lineTo(90,55);ctx.lineTo(110,72);ctx.lineTo(130,88);ctx.lineTo(140,95);
+  ctx.closePath();ctx.fill();
+  // Ridge highlights
+  ctx.fillStyle='#43A047';
+  ctx.beginPath();
+  ctx.moveTo(20,55);ctx.lineTo(35,42);ctx.lineTo(50,35);ctx.lineTo(55,38);
+  ctx.lineTo(40,48);ctx.lineTo(25,60);ctx.closePath();ctx.fill();
+
+  // Right mountain range
+  ctx.fillStyle='#2E7D32';
+  ctx.beginPath();
+  ctx.moveTo(170,95);ctx.lineTo(195,68);ctx.lineTo(220,52);ctx.lineTo(250,42);
+  ctx.lineTo(280,48);ctx.lineTo(305,60);ctx.lineTo(320,75);ctx.lineTo(320,95);
+  ctx.closePath();ctx.fill();
+  ctx.fillStyle='#388E3C';
+  ctx.beginPath();
+  ctx.moveTo(190,95);ctx.lineTo(215,62);ctx.lineTo(245,48);ctx.lineTo(275,52);
+  ctx.lineTo(300,65);ctx.lineTo(320,80);ctx.lineTo(320,95);
+  ctx.closePath();ctx.fill();
+  ctx.fillStyle='#43A047';
+  ctx.beginPath();
+  ctx.moveTo(220,58);ctx.lineTo(240,48);ctx.lineTo(252,50);ctx.lineTo(235,60);
+  ctx.closePath();ctx.fill();
+}
+
+function drawClouds(){
+  clouds.forEach(c=>{
+    pRect(c.x,c.y,c.w,8,'rgba(255,255,255,0.7)');
+    pRect(c.x+5,c.y-4,c.w-10,7,'rgba(255,255,255,0.85)');
+    pRect(c.x+12,c.y+6,c.w-24,5,'rgba(255,255,255,0.6)');
+    c.x+=c.s;if(c.x>GW+10)c.x=-c.w-10;
+  });
+}
+
+function drawCoconutTree(tx,ty,height,lean){
+  ctx.fillStyle='#795548';
+  for(let i=0;i<height;i++){
+    const curve=Math.sin(i/height*Math.PI*0.5)*lean;
+    const w=Math.max(2,4-Math.floor(i/height*2));
+    ctx.fillRect(Math.floor(tx+curve),ty-i,w,2);
+  }
+  ctx.fillStyle='#8D6E63';
+  for(let i=0;i<height;i+=4){
+    const curve=Math.sin(i/height*Math.PI*0.5)*lean;
+    ctx.fillRect(Math.floor(tx+curve),ty-i,1,2);
+  }
+  const topX=Math.floor(tx+Math.sin(Math.PI*0.5)*lean);
+  const topY=ty-height;
+  const fronds=[
+    {a:-2.2,l:22},{a:-1.6,l:25},{a:-0.8,l:20},
+    {a:0.3,l:23},{a:1.0,l:25},{a:1.8,l:20}
+  ];
+  fronds.forEach((f,fi)=>{
+    const sway=Math.sin(Date.now()/1500+fi+tx)*0.1;
+    const ang=f.a+sway;
+    ctx.fillStyle=fi<3?'#2E7D32':'#43A047';
+    for(let j=0;j<f.l;j++){
+      const fx=topX+Math.cos(ang)*j;
+      const fy=topY+Math.sin(ang)*j+j*j*0.012;
+      ctx.fillRect(Math.floor(fx),Math.floor(fy),2,1);
+      if(j>3&&j<f.l-3){
+        ctx.fillRect(Math.floor(fx),Math.floor(fy-1),1,1);
+        ctx.fillRect(Math.floor(fx),Math.floor(fy+1),1,1);
+      }
+    }
+  });
+  pCircle(topX+2,topY+3,2,'#6D4C41');
+  pCircle(topX-2,topY+4,2,'#5D4037');
+  pCircle(topX+1,topY+5,2,'#795548');
+}
+
+function drawGrass(){
+  ctx.fillStyle='#4CAF50';
+  ctx.fillRect(0,92,GW,GH-92);
+  for(let y=92;y<GH;y+=14){
+    ctx.fillStyle=y%28===0?'#45A049':'#4CAF50';
+    ctx.fillRect(0,y,GW,7);
+    ctx.fillStyle=y%28===0?'#4CAF50':'#51B655';
+    ctx.fillRect(0,y+7,GW,7);
+  }
+  ctx.fillStyle='#66BB6A';
+  for(let i=0;i<30;i++){
+    const gx=(i*43+17)%GW,gy=100+(i*61+11)%(GH-140);
+    ctx.fillRect(gx,gy,2,4);ctx.fillRect(gx+2,gy-1,2,3);
+  }
+}
+
+function drawFlowers(){
+  flowers.forEach(f=>{
+    if(f.y<100)return;
+    const cols=['#FF6B6B','#FFD93D','#FF8E53','#F48FB1'];
+    ctx.fillStyle=cols[f.t];
+    ctx.fillRect(f.x,f.y-1,f.s,1);ctx.fillRect(f.x-1,f.y,1,f.s);
+    ctx.fillRect(f.x+f.s,f.y,1,f.s);ctx.fillRect(f.x,f.y+f.s,f.s,1);
+    ctx.fillStyle='#FFF9C4';
+    ctx.fillRect(f.x,f.y,f.s,f.s);
+    ctx.fillStyle='#2E7D32';
+    ctx.fillRect(f.x+Math.floor(f.s/2),f.y+f.s+1,2,3);
+  });
+}
+
+function drawBackground(){
+  drawHawaiianSky();
+  drawOcean();
+  drawMountains();
+  drawClouds();
+  drawGrass();
+  drawCoconutTree(12,135,50,8);
+  drawCoconutTree(48,148,38,-5);
+  drawCoconutTree(272,138,48,-7);
+  drawCoconutTree(302,150,36,6);
+  drawFlowers();
+}
+
+// ====== CROWD DRAWING ======
+function drawPerson(p,baseY,excited,idx){
+  const t=Date.now()/1000;
+  const bob=Math.sin(t*p.bobSpeed+p.bobOff)*(excited?2.5:0.8);
+  pRect(p.x,baseY-p.h+bob,8,p.h,p.color);
+  pCircle(p.x+4,baseY-p.h-4+bob,4,p.skin);
+  pRect(p.x+1,baseY-p.h-8+bob,6,3,'#1a1a1a');
+  if(p.armUp||excited){
+    const aw=Math.sin(t*4+idx)*3;
+    ctx.fillStyle=p.skin;
+    ctx.fillRect(p.x-3,baseY-p.h+2+bob+aw,3,2);
+    ctx.fillRect(p.x+8,baseY-p.h+2+bob-aw,3,2);
+  }
+}
+
+function drawCrowds(excited){
+  // Bottom crowd - above the button bar
+  const botY=GH-38;
+  pRect(0,botY-10,GW,32,'rgba(0,0,0,0.3)');
+  crowdBottom.forEach((p,i)=>drawPerson(p,botY,excited,i));
+  
+  // Left side crowd
+  crowdLeft.forEach((p,i)=>{
+    const sideY=180+i*35;
+    drawPerson(p,sideY,excited,i+20);
+  });
+  
+  // Right side crowd
+  crowdRight.forEach((p,i)=>{
+    const sideY=175+i*35;
+    drawPerson(p,sideY,excited,i+30);
+  });
+}
+
+// ====== CHANTS ======
+function addChant(text,x,y,color){chants.push({text,x,y,life:1.0,vy:-0.8,color});}
+function updateChants(){chants=chants.filter(c=>{c.y+=c.vy;c.life-=0.015;return c.life>0;});}
+function drawChants(){
+  chants.forEach(c=>{
+    ctx.globalAlpha=c.life;ctx.fillStyle=c.color;
+    ctx.font='bold 11px monospace';ctx.textAlign='center';
+    ctx.fillText(c.text,c.x,c.y);
+  });
+  ctx.globalAlpha=1;
+}
+
+// ====== STAKES ======
+function drawStakes(){
+  ctx.fillStyle='rgba(0,0,0,0.15)';
+  pRect(sL+2,STAKE_Y+5,6,44,'rgba(0,0,0,0.15)');
+  pRect(sR+2,STAKE_Y+5,6,44,'rgba(0,0,0,0.15)');
+  pRect(sL,STAKE_Y,4,44,'#8B4513');pRect(sL-1,STAKE_Y,6,3,'#A0522D');pRect(sL,STAKE_Y,2,44,'#A0522D');
+  pRect(sR,STAKE_Y,4,44,'#8B4513');pRect(sR-1,STAKE_Y,6,3,'#A0522D');pRect(sR,STAKE_Y,2,44,'#A0522D');
+  if(state===S.AIM){
+    ctx.fillStyle='rgba(255,215,0,0.12)';
+    ctx.fillRect(sL+4,STAKE_Y+5,STAKE_GAP-4,34);
+  }
+}
+
+// ====== AIM ARROW ======
+function drawAim(){
+  if(!isDrag||!swipeStart||!swipeEnd)return;
+  const dx=swipeEnd.x-swipeStart.x,dy=swipeEnd.y-swipeStart.y;
+  const len=Math.sqrt(dx*dx+dy*dy);
+  if(len<5)return;
+  const maxL=80,cl=Math.min(len,maxL);
+  const nx=dx/len,ny=dy/len;
+  const power=cl/maxL;
+  
+  const bW=60,bH=8,bX=stone.x-bW/2,bY=stone.y+20;
+  pRect(bX-1,bY-1,bW+2,bH+2,'#333');pRect(bX,bY,bW,bH,'#222');
+  pRect(bX,bY,bW*power,bH,power<0.5?'#4CAF50':power<0.8?'#FFD93D':'#FF6B6B');
+  
+  ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font='8px monospace';ctx.textAlign='center';
+  ctx.fillText(power<0.5?'gentle':power<0.8?'firm':'FULL POWER',stone.x,bY+18);
+  
+  const aLen=cl*0.6,eX=stone.x+nx*aLen,eY=stone.y+ny*aLen;
+  ctx.strokeStyle='#FFD93D';ctx.lineWidth=2;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(stone.x,stone.y);ctx.lineTo(eX,eY);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#FFD93D';ctx.beginPath();
+  ctx.moveTo(eX+nx*6,eY+ny*6);ctx.lineTo(eX+ny*3,eY-nx*3);ctx.lineTo(eX-ny*3,eY+nx*3);ctx.fill();
+}
+
+// ====== PARTICLES ======
+// Compute the visual position of the stone (with perspective in precision mode)
+function getStoneVisualPos(){
+  const HORIZON_Y=95;
+  let vx=stone.x,vy=stone.y,vr=stone.r;
+  if(mode===M.PRECISION&&stone.y<STAKE_Y){
+    const pastDist=STAKE_Y-stone.y;
+    const maxVisRange=STAKE_Y-HORIZON_Y;
+    const visualOffset=maxVisRange*(1-Math.exp(-pastDist/300));
+    vy=STAKE_Y-visualOffset;
+    const sf=Math.max(0.15,1-visualOffset/maxVisRange*0.85);
+    vr=stone.r*sf;
+    vx=GW/2+(stone.x-GW/2)*sf;
+  }
+  return{x:vx,y:vy,r:Math.max(2,vr)};
+}
+
+function updateParticles(){
+  if(stone.rolling){
+    const vis=getStoneVisualPos();
+    const pScale=vis.r/stone.r; // particle size scales with perspective
+    for(let i=0;i<2;i++){
+      particles.push({x:vis.x+(Math.random()-0.5)*6*pScale,y:vis.y+vis.r,
+        vx:(Math.random()-0.5)*0.5*pScale,vy:Math.random()*-0.5*pScale,
+        sz:Math.max(1,(2+Math.random()*2)*pScale),life:0.7,
+        color:Math.random()>0.5?'#66BB6A':'#8D6E63'});
+    }
+  }
+  particles=particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.life-=0.03;return p.life>0;});
+}
+function drawParticles(){
+  particles.forEach(p=>{
+    ctx.globalAlpha=p.life;ctx.fillStyle=p.color;
+    ctx.fillRect(Math.floor(p.x),Math.floor(p.y),p.sz,p.sz);
+  });ctx.globalAlpha=1;
+}
+
+// ====== CELEBRATION ======
+function spawnCelebration(cx,cy){
+  for(let i=0;i<30;i++){
+    const a=Math.random()*Math.PI*2,sp=1+Math.random()*3;
+    celebParticles.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,
+      sz:2+Math.random()*3,life:1.0,
+      color:['#FFD93D','#FF6B6B','#4CAF50','#64B5F6','#FF8E53'][Math.floor(Math.random()*5)]});
+  }
+}
+function updateCelebParticles(){
+  celebParticles=celebParticles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.life-=0.02;return p.life>0;});
+}
+function drawCelebParticles(){
+  celebParticles.forEach(p=>{
+    ctx.globalAlpha=p.life;ctx.fillStyle=p.color;
+    ctx.fillRect(Math.floor(p.x),Math.floor(p.y),p.sz,p.sz);
+  });ctx.globalAlpha=1;
+}
+
+// ====== UI ======
+// Button hit areas - below the crowd at very bottom
+const BTN_EXIT={x:4,y:GH-18,w:50,h:16};
+const BTN_HISCORE={x:GW-54,y:GH-18,w:50,h:16};
+
+function drawUI(){
+  // Top bar
+  pRect(0,0,GW,28,'rgba(0,0,0,0.6)');
+  ctx.fillStyle='#FFD93D';ctx.font='bold 12px monospace';ctx.textAlign='left';
+  ctx.fillText('SCORE: '+score,8,18);
+  ctx.fillStyle='#FFF';ctx.textAlign='right';
+  ctx.fillText('ROLLS: '+(MAX_ROLLS-rolls)+'/'+MAX_ROLLS,GW-8,18);
+  ctx.fillStyle='#FFA726';ctx.textAlign='center';ctx.font='9px monospace';
+  ctx.fillText(mode===M.PRECISION?'PRECISION':'DISTANCE',GW/2,17);
+  
+  // Bottom button bar - below the crowd
+  pRect(0,GH-20,GW,20,'rgba(0,0,0,0.7)');
+  
+  // Exit button - bottom left
+  ctx.fillStyle='#E0E0E0';ctx.font='9px monospace';ctx.textAlign='center';
+  ctx.fillText('EXIT',BTN_EXIT.x+BTN_EXIT.w/2,BTN_EXIT.y+11);
+  
+  // High score button - bottom right
+  ctx.fillStyle='#FFD93D';ctx.font='9px monospace';ctx.textAlign='center';
+  ctx.fillText('HI-SCORE',BTN_HISCORE.x+BTN_HISCORE.w/2,BTN_HISCORE.y+11);
+  
+  // Credit in center bottom
+  ctx.fillStyle='rgba(255,255,255,0.3)';ctx.font='7px monospace';
+  ctx.fillText('ʻUlu Maika',GW/2,GH-6);
+}
+
+function drawHighScoreOverlay(){
+  ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,GW,GH);
+  
+  pRect(40,80,GW-80,4,'#A0522D');
+  drawTriangleBorder(40,GW-40,88,true,'#8B4513');
+  pRect(40,370,GW-80,4,'#A0522D');
+  drawTriangleBorder(40,GW-40,366,false,'#8B4513');
+  
+  ctx.fillStyle='#FFD93D';ctx.font='bold 18px monospace';ctx.textAlign='center';
+  ctx.fillText('HIGH SCORES',GW/2,115);
+  
+  // Precision scores
+  ctx.fillStyle='#81C784';ctx.font='bold 12px monospace';
+  ctx.fillText('PRECISION',GW/2,150);
+  if(highScores.precision.length===0){
+    ctx.fillStyle='rgba(255,255,255,0.4)';ctx.font='10px monospace';
+    ctx.fillText('No scores yet',GW/2,172);
+  } else {
+    highScores.precision.forEach((s,i)=>{
+      ctx.fillStyle=i===0?'#FFD93D':'#E0E0E0';
+      ctx.font=(i===0?'bold ':'')+' 11px monospace';
+      ctx.textAlign='center';
+      ctx.fillText((i+1)+'. '+s+' pts',GW/2,172+i*16);
+    });
+  }
+  
+  // Distance scores
+  const distY=172+Math.max(highScores.precision.length,1)*16+20;
+  ctx.fillStyle='#64B5F6';ctx.font='bold 12px monospace';ctx.textAlign='center';
+  ctx.fillText('DISTANCE',GW/2,distY);
+  if(highScores.distance.length===0){
+    ctx.fillStyle='rgba(255,255,255,0.4)';ctx.font='10px monospace';
+    ctx.fillText('No scores yet',GW/2,distY+22);
+  } else {
+    highScores.distance.forEach((s,i)=>{
+      ctx.fillStyle=i===0?'#FFD93D':'#E0E0E0';
+      ctx.font=(i===0?'bold ':'')+'11px monospace';
+      ctx.textAlign='center';
+      ctx.fillText((i+1)+'. '+s+' pts',GW/2,distY+22+i*16);
+    });
+  }
+  
+  const pulse=Math.sin(Date.now()/400)*0.3+0.7;
+  ctx.globalAlpha=pulse;ctx.fillStyle='#FFF';ctx.font='bold 12px monospace';
+  ctx.fillText('TAP TO CLOSE',GW/2,400);ctx.globalAlpha=1;
+}
+
+function drawResultPopup(){
+  if(resultTimer<=0)return;
+  const a=Math.min(resultTimer/30,1),yOff=(1-a)*20;
+  ctx.globalAlpha=a;ctx.fillStyle=resultColor;
+  ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText(resultText,GW/2,200-yOff);
+  if(resultSub){ctx.fillStyle='rgba(255,255,255,0.8)';ctx.font='11px monospace';ctx.fillText(resultSub,GW/2,220-yOff);}
+  if(resultText==='Poʻokela!'||resultText==='Pāʻani Maikaʻi!'){
+    ctx.fillStyle='#FFD93D';
+    for(let i=0;i<8;i++){
+      const ang=Date.now()/300+i*Math.PI/4,r=30+Math.sin(Date.now()/200+i)*10;
+      ctx.fillRect(GW/2+Math.cos(ang)*r,190-yOff+Math.sin(ang)*r,3,3);
+    }
+  }
+  ctx.globalAlpha=1;
+}
+
+// ====== DISTANCE TRACK ======
+function drawDistanceTrack(){
+  const cL=GW/2-50,cR=GW/2+50;
+  // We're inside ctx.translate(0,distCamera), so use world coords directly
+  // Convert screen boundaries to world coords for clipping
+  const worldVisTop=-distCamera;
+  const worldVisBot=GH-distCamera;
+  const worldGrassTop=92-distCamera;
+  const worldCrowdTop=GH-50-distCamera;
+  
+  for(let px=0;px<2500;px+=60){
+    const wy=distStartY-px;
+    if(wy<worldGrassTop||wy>worldVisBot+20)continue;
+    if(wy>worldCrowdTop)continue;
+    const ft=Math.round(px*PX_TO_FEET);
+    ctx.fillStyle='rgba(255,255,255,0.2)';
+    ctx.fillRect(cL+5,wy,cR-cL-10,1);
+    ctx.fillStyle='rgba(255,255,255,0.35)';
+    ctx.font='8px monospace';ctx.textAlign='right';
+    ctx.fillText(ft+' ft',cL-2,wy+3);
+  }
+  
+  // Course edge lines - clipped between grass and crowd
+  const edgeTop=Math.max(worldGrassTop,worldVisTop);
+  const edgeBot=Math.min(worldCrowdTop,worldVisBot);
+  ctx.fillStyle='rgba(139,69,19,0.4)';
+  if(edgeBot>edgeTop){
+    ctx.fillRect(cL,edgeTop,3,edgeBot-edgeTop);
+    ctx.fillRect(cR-3,edgeTop,3,edgeBot-edgeTop);
+  }
+  
+  // Previous roll markers
+  distMarkers.forEach((m,i)=>{
+    const mpx=m.dist/PX_TO_FEET;
+    const wy=distStartY-mpx;
+    if(wy<worldGrassTop||wy>worldCrowdTop)return;
+    pRect(cL+8,wy-1,cR-cL-16,3,'rgba(255,107,107,0.5)');
+    ctx.fillStyle='#FFD93D';ctx.font='bold 9px monospace';ctx.textAlign='left';
+    ctx.fillText('#'+(i+1)+': '+Math.round(m.dist)+' ft',cR+5,wy+3);
+  });
+}
+
+// ====== TITLE ======
+function drawTitle(){
+  drawBackground();
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,0,GW,GH);
+  
+  pRect(20,65,GW-40,3,'#A0522D');
+  drawTriangleBorder(20,GW-20,72,true,'#8B4513');
+  pRect(20,200,GW-40,3,'#A0522D');
+  drawTriangleBorder(20,GW-20,196,false,'#8B4513');
+  
+  ctx.fillStyle='#FFD93D';ctx.font='bold 26px monospace';ctx.textAlign='center';
+  ctx.fillText("ʻULU MAIKA",GW/2,120);
+  ctx.fillStyle='#FFA726';ctx.font='12px monospace';
+  ctx.fillText('~ Makahiki Games ~',GW/2,142);
+  ctx.fillStyle='#C8E6C9';ctx.font='10px monospace';
+  ctx.fillText('Peace, Community, Skills',GW/2,162);
+  
+  const ax=(Date.now()/15)%400-40;
+  drawStone(ax,180,8,Date.now()/200);
+  for(let i=1;i<4;i++){ctx.globalAlpha=0.3-i*0.08;pCircle(ax-i*12,180,3,'#888');}
+  ctx.globalAlpha=1;
+  
+  pRect(30,230,GW-60,130,'rgba(0,0,0,0.4)');
+  ctx.fillStyle='#E0E0E0';ctx.font='10px monospace';ctx.textAlign='center';
+  ctx.fillText('A traditional Hawaiian',GW/2,250);
+  ctx.fillText('stone-rolling game played',GW/2,264);
+  ctx.fillText('during the Makahiki harvest',GW/2,278);
+  ctx.fillText('festival to test strength',GW/2,292);
+  ctx.fillText('and accuracy.',GW/2,306);
+  ctx.fillStyle='#81C784';ctx.font='9px monospace';
+  ctx.fillText('Even Kamehameha I played.',GW/2,332);
+  ctx.fillText('Swipe to roll. Aim true!',GW/2,346);
+  
+  const pulse=Math.sin(Date.now()/400)*0.3+0.7;
+  ctx.globalAlpha=pulse;ctx.fillStyle='#FFD93D';ctx.font='bold 16px monospace';
+  ctx.fillText('TAP TO PLAY',GW/2,400);ctx.globalAlpha=1;
+  
+  ctx.fillStyle='rgba(255,255,255,0.4)';ctx.font='9px monospace';
+  ctx.fillText('created by kahalewai',GW/2,465);
+}
+
+// ====== MODE SELECT ======
+function drawModeSelect(){
+  drawBackground();
+  ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(0,0,GW,GH);
+  
+  ctx.fillStyle='#FFD93D';ctx.font='bold 18px monospace';ctx.textAlign='center';
+  ctx.fillText('CHOOSE YOUR GAME',GW/2,80);
+  
+  pRect(30,110,GW-60,130,'rgba(76,175,80,0.25)');
+  ctx.strokeStyle='#4CAF50';ctx.lineWidth=2;ctx.strokeRect(30,110,GW-60,130);
+  ctx.fillStyle='#FFD93D';ctx.font='bold 14px monospace';ctx.fillText('PRECISION',GW/2,138);
+  ctx.fillStyle='#C8E6C9';ctx.font='10px monospace';
+  ctx.fillText('Roll between two stakes',GW/2,158);ctx.fillText('(pahu hoku) without',GW/2,172);ctx.fillText('touching them.',GW/2,186);
+  ctx.fillStyle='#81C784';ctx.font='9px monospace';
+  ctx.fillText('"30-40 yards away, roll the',GW/2,200);ctx.fillText('maika (stone) through the',GW/2,212);ctx.fillText('pahu hoku (stakes)"',GW/2,224);
+  
+  pRect(30,260,GW-60,130,'rgba(33,150,243,0.25)');
+  ctx.strokeStyle='#2196F3';ctx.lineWidth=2;ctx.strokeRect(30,260,GW-60,130);
+  ctx.fillStyle='#FFD93D';ctx.font='bold 14px monospace';ctx.fillText('DISTANCE',GW/2,288);
+  ctx.fillStyle='#BBDEFB';ctx.font='10px monospace';
+  ctx.fillText('Roll the maika (stone)',GW/2,308);ctx.fillText('as far as possible down',GW/2,322);ctx.fillText('the kahua maika course.',GW/2,336);
+  ctx.fillStyle='#90CAF9';ctx.font='9px monospace';ctx.fillText('"Where it stops, mark it."',GW/2,356);
+  ctx.fillStyle='rgba(139,69,19,0.4)';
+  ctx.fillRect(GW/2-20,368,2,18);ctx.fillRect(GW/2+18,368,2,18);
+  drawStone(GW/2,380,5,0);
+  
+  ctx.fillStyle='#FFF';ctx.font='11px monospace';ctx.fillText('TAP A MODE TO BEGIN',GW/2,430);
+}
+
+// ====== FACT SCREEN ======
+function drawFact(){
+  drawBackground();
+  ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,GW,GH);
+  
+  const f=facts[selectedFactIndex];
+  
+  pRect(25,120,GW-50,3,'#A0522D');
+  drawTriangleBorder(25,GW-25,127,true,'#8B4513');
+  pRect(25,320,GW-50,3,'#A0522D');
+  drawTriangleBorder(25,GW-25,316,false,'#8B4513');
+  
+  ctx.fillStyle='#FFA726';ctx.font='10px monospace';ctx.textAlign='center';
+  ctx.fillText('DID YOU KNOW?',GW/2,148);
+  ctx.fillStyle='#FFD93D';ctx.font='bold 14px monospace';
+  ctx.fillText(f.title,GW/2,175);
+  ctx.fillStyle='#E0E0E0';ctx.font='10px monospace';
+  f.text.forEach((l,i)=>ctx.fillText(l,GW/2,200+i*16));
+  
+  const pulse=Math.sin(Date.now()/400)*0.3+0.7;
+  ctx.globalAlpha=pulse;ctx.fillStyle='#81C784';ctx.font='bold 12px monospace';
+  ctx.fillText('TAP TO CONTINUE',GW/2,380);ctx.globalAlpha=1;
+}
+
+// ====== GAME OVER ======
+function drawGameOver(){
+  ctx.fillStyle='rgba(0,0,0,0.65)';ctx.fillRect(0,0,GW,GH);
+  ctx.fillStyle='#FFD93D';ctx.font='bold 22px monospace';ctx.textAlign='center';
+  ctx.fillText('PAU!',GW/2,140);
+  ctx.fillStyle='#FFA726';ctx.font='12px monospace';ctx.fillText('(Finished!)',GW/2,162);
+  ctx.fillStyle='#FFF';ctx.font='14px monospace';
+  ctx.fillText(mode===M.PRECISION?'PRECISION':'DISTANCE',GW/2,200);
+  ctx.fillStyle='#FFD93D';ctx.font='bold 32px monospace';ctx.fillText(''+score,GW/2,250);
+  if(mode===M.DISTANCE){
+    ctx.fillStyle='#BBDEFB';ctx.font='12px monospace';
+    ctx.fillText('Best roll: '+Math.round(bestDist)+' feet',GW/2,275);
+  }
+  let rating,rc;
+  if(mode===M.PRECISION){
+    if(score>=400){rating="ALIʻI (Chief)!";rc='#FFD93D';}
+    else if(score>=250){rating="KOA (Warrior)!";rc='#FFA726';}
+    else if(score>=100){rating="MĀHIAI (Farmer)";rc='#81C784';}
+    else{rating="KEIKI (Beginner)";rc='#90CAF9';}
+  } else {
+    if(bestDist>=600){rating="ALIʻI (Chief)!";rc='#FFD93D';}
+    else if(bestDist>=350){rating="KOA (Warrior)!";rc='#FFA726';}
+    else if(bestDist>=150){rating="MĀHIAI (Farmer)";rc='#81C784';}
+    else{rating="KEIKI (Beginner)";rc='#90CAF9';}
+  }
+  ctx.fillStyle=rc;ctx.font='bold 13px monospace';ctx.fillText(rating,GW/2,310);
+  const pulse=Math.sin(Date.now()/400)*0.3+0.7;
+  ctx.globalAlpha=pulse;ctx.fillStyle='#FFF';ctx.font='bold 13px monospace';
+  ctx.fillText('Pāʻani Hou! (Play Again)',GW/2,400);ctx.globalAlpha=1;
+}
+
+// ====== GAME LOGIC ======
+function resetStone(){
+  stone.x=GW/2;stone.y=distStartY;
+  stone.vx=0;stone.vy=0;stone.rolling=false;stone.scored=false;stone.hitStake=false;stone.rot=0;
+}
+
+function resetGame(){
+  score=0;rolls=0;resultTimer=0;
+  distCamera=0;distMarkers=[];bestDist=0;currentDist=0;
+  particles=[];chants=[];celebParticles=[];
+  resetStone();
+}
+
+function triggerCrowdChant(){
+  if(chantCooldown>0)return;
+  const speed=Math.sqrt(stone.vx*stone.vx+stone.vy*stone.vy);
+  if(speed>2){
+    const texts=["Ā ʻo ia!","ʻOnipa'a!","Ā ʻo ia!","ʻOnipa'a!"];
+    // Chants come from sides and bottom
+    const side=Math.random();
+    let cx,cy;
+    if(side<0.33){cx=15+Math.random()*30;cy=200+Math.random()*120;}
+    else if(side<0.66){cx=GW-15-Math.random()*30;cy=200+Math.random()*120;}
+    else{cx=40+Math.random()*(GW-80);cy=GH-45;}
+    addChant(texts[Math.floor(Math.random()*texts.length)],cx,cy,'#FFD93D');
+    chantCooldown=15+Math.random()*15;
+    crowdBottom.forEach(p=>{if(Math.random()>0.4)p.armUp=true;});
+    crowdLeft.forEach(p=>{if(Math.random()>0.4)p.armUp=true;});
+    crowdRight.forEach(p=>{if(Math.random()>0.4)p.armUp=true;});
+  }
+}
+
+function checkPrecisionScore(){
+  const stL=stone.x-stone.r,stR=stone.x+stone.r;
+  if(stone.y<=STAKE_Y+20&&stone.y>=STAKE_Y-10){
+    if(stL>sL+2&&stR<sR-2){
+      const center=(sL+sR)/2,dist=Math.abs(stone.x-center);
+      const maxD=STAKE_GAP/2-stone.r;
+      if(stone.hitStake){
+        // Hit the stake but still went through!
+        score+=25;resultText='Pōmaikaʻi!';resultColor='#FFA726';resultSub='+25 - Lucky Shot!';
+      } else if(dist<5){score+=100;resultText='Poʻokela!';resultColor='#FFD93D';resultSub='+100 - Perfect!';spawnCelebration(stone.x,stone.y);}
+      else if(dist<maxD*0.5){score+=50;resultText='Maikaʻi loa!';resultColor='#81C784';resultSub='+50 - Very Good!';}
+      else{score+=25;resultText='Holo kokoke!';resultColor='#64B5F6';resultSub='+25 - Barely made it!';}
+      resultTimer=100;return true;
+    }
+  }
+  return false;
+}
+
+function finishRoll(){
+  // rolls already incremented at launch time
+  if(rolls>=MAX_ROLLS){
+    saveHighScore();
+    selectedFactIndex=Math.floor(Math.random()*facts.length);
+    state=S.FACT;
+  } else {
+    if(mode===M.DISTANCE){distCamera=0;currentDist=0;}
+    resetStone();
+    state=S.AIM;
+  }
+}
+
+function update(){
+  chantCooldown--;
+  updateChants();
+  updateCelebParticles();
+  
+  if(state===S.ROLLING){
+    stone.x+=stone.vx;stone.y+=stone.vy;
+    stone.rot+=stone.vx*0.15;
+    
+    const speed=Math.sqrt(stone.vx*stone.vx+stone.vy*stone.vy);
+    
+    // Constant friction deceleration
+    const friction=0.08;
+    if(speed>friction){
+      stone.vx-=(stone.vx/speed)*friction;
+      stone.vy-=(stone.vy/speed)*friction;
+    } else {
+      stone.vx=0;stone.vy=0;
+    }
+    
+    triggerCrowdChant();
+    
+    if(mode===M.PRECISION){
+      if(!stone.scored&&stone.y<STAKE_Y+30) if(checkPrecisionScore()) stone.scored=true;
+      if(stone.y<=STAKE_Y+44&&stone.y>=STAKE_Y-5){
+        if(Math.abs(stone.x-sL-2)<stone.r+3){
+          stone.vx=Math.abs(stone.vx)*0.5;stone.x=sL+stone.r+5;
+          stone.hitStake=true;
+        }
+        if(Math.abs(stone.x-sR-2)<stone.r+3){
+          stone.vx=-Math.abs(stone.vx)*0.5;stone.x=sR-stone.r-5;
+          stone.hitStake=true;
+        }
+      }
+      if(stone.x<stone.r){stone.x=stone.r;stone.vx*=-0.5;}
+      if(stone.x>GW-stone.r){stone.x=GW-stone.r;stone.vx*=-0.5;}
+      
+      if(speed<0.3){
+        state=S.STOPPING;
+        stone.rolling=false;
+        if(!stone.scored){
+          if(stone.hitStake){
+            resultText='Auē!';resultColor='#FF6B6B';resultSub='Oh no! Hit the stake!';
+          } else if(stone.y<STAKE_Y){
+            const r=Math.random();
+            if(r<0.5){resultText='He keu!';resultSub='Too far!';}
+            else{resultText='Hana Hou!';resultSub='Try again!';}
+            resultColor='#FF6B6B';
+          } else {
+            const r=Math.random();
+            if(r<0.5){resultText='Hoʻohakalia!';resultSub='Too short!';}
+            else{resultText='Hana Hou!';resultSub='Try again!';}
+            resultColor='#FF6B6B';
+          }
+          resultTimer=80;
+        }
+        setTimeout(finishRoll,900);
+      }
+    } else {
+      // DISTANCE
+      currentDist=(distStartY-stone.y)*PX_TO_FEET;
+      const targetCam=Math.max(0,(distStartY-stone.y)-200);
+      distCamera+=(targetCam-distCamera)*0.08;
+      
+      const cL=GW/2-48,cR=GW/2+48;
+      if(stone.x<cL+stone.r){stone.x=cL+stone.r;stone.vx=Math.abs(stone.vx)*0.3;}
+      if(stone.x>cR-stone.r){stone.x=cR-stone.r;stone.vx=-Math.abs(stone.vx)*0.3;}
+      
+      if(speed<0.2||stone.y>distStartY+50){
+        state=S.STOPPING;
+        stone.rolling=false;
+        const dist=Math.max(0,currentDist);
+        distMarkers.push({dist});
+        if(dist>bestDist)bestDist=dist;
+        
+        const pts=Math.round(dist/5);
+        score+=pts;
+        
+        if(dist>500){resultText=Math.random()<0.5?'Pāʻani Maikaʻi!':'Poʻokela!';resultColor='#FFD93D';resultSub=Math.round(dist)+' ft! +'+pts;spawnCelebration(GW/2,200);}
+        else if(dist>250){resultText='Maikaʻi loa!';resultColor='#81C784';resultSub=Math.round(dist)+' ft! +'+pts;}
+        else if(dist>80){resultText=Math.random()<0.5?'Hoʻohakalia!':'Hana Hou!';resultColor='#FF6B6B';resultSub=Math.round(dist)+' ft. +'+pts;}
+        else{resultText=Math.random()<0.5?'Hoʻohakalia!':'Hana Hou!';resultColor='#FF6B6B';resultSub=Math.round(dist)+' ft.';}
+        resultTimer=100;
+        
+        setTimeout(finishRoll,1000);
+      }
+    }
+    
+    updateParticles();
+    // Randomly lower arms
+    if(Math.random()>0.95){
+      crowdBottom.forEach(p=>p.armUp=false);
+      crowdLeft.forEach(p=>p.armUp=false);
+      crowdRight.forEach(p=>p.armUp=false);
+    }
+  }
+  
+  if(resultTimer>0)resultTimer--;
+}
+
+// ====== MAIN DRAW ======
+function draw(){
+  ctx.clearRect(0,0,GW,GH);
+  
+  if(state===S.TITLE){drawTitle();return;}
+  if(state===S.MODE){drawModeSelect();return;}
+  if(state===S.FACT){drawFact();return;}
+  
+  drawBackground();
+  
+  if(mode===M.PRECISION){
+    drawStakes();
+    drawParticles();
+    // Use perspective-mapped position
+    const vis=getStoneVisualPos();
+    drawStone(vis.x,vis.y,vis.r,stone.rot);
+    if(state===S.AIM)drawAim();
+    drawCrowds(state===S.ROLLING||state===S.STOPPING);
+    drawChants();drawCelebParticles();drawUI();drawResultPopup();
+  } else {
+    // Distance mode - draw track elements with camera offset
+    ctx.save();
+    ctx.translate(0,distCamera);
+    drawDistanceTrack();
+    drawParticles();
+    drawStone(stone.x,stone.y,stone.r,stone.rot);
+    ctx.restore();
+    if(state===S.AIM)drawAim();
+    drawCrowds(state===S.ROLLING||state===S.STOPPING);
+    drawChants();drawCelebParticles();drawUI();
+    if((state===S.ROLLING||state===S.STOPPING)&&mode===M.DISTANCE){
+      ctx.fillStyle='#FFF';ctx.font='bold 14px monospace';ctx.textAlign='center';
+      ctx.fillText(Math.round(Math.max(0,currentDist))+' ft',GW/2,50);
+    }
+    drawResultPopup();
+  }
+  
+  if(state===S.GAMEOVER)drawGameOver();
+  if(state===S.HIGHSCORE)drawHighScoreOverlay();
+}
+
+function gameLoop(){update();draw();requestAnimationFrame(gameLoop);}
+
+// ====== INPUT ======
+function getPos(e){
+  const rect=canvas.getBoundingClientRect();
+  const t=e.touches?e.touches[0]||e.changedTouches[0]:e;
+  return{x:(t.clientX-rect.left)/scale,y:(t.clientY-rect.top)/scale};
+}
+
+function hitBtn(p,btn){return p.x>=btn.x&&p.x<=btn.x+btn.w&&p.y>=btn.y&&p.y<=btn.y+btn.h;}
+
+function onStart(e){
+  e.preventDefault();const p=getPos(e);
+  if(state===S.TITLE){state=S.MODE;return;}
+  if(state===S.MODE){
+    if(p.y>=110&&p.y<=240){mode=M.PRECISION;resetGame();state=S.AIM;return;}
+    if(p.y>=260&&p.y<=390){mode=M.DISTANCE;resetGame();state=S.AIM;return;}
+    return;
+  }
+  if(state===S.FACT){state=S.GAMEOVER;return;}
+  if(state===S.GAMEOVER){state=S.MODE;return;}
+  if(state===S.HIGHSCORE){state=returnFromHighScore;return;}
+  
+  // Check bottom buttons during gameplay (AIM or STOPPING)
+  if(state===S.AIM||state===S.STOPPING){
+    if(hitBtn(p,BTN_EXIT)){state=S.MODE;return;}
+    if(hitBtn(p,BTN_HISCORE)){
+      returnFromHighScore=state;
+      state=S.HIGHSCORE;return;
+    }
+  }
+  
+  if(state===S.AIM){swipeStart=p;swipeEnd=p;isDrag=true;}
+}
+function onMove(e){e.preventDefault();if(!isDrag)return;swipeEnd=getPos(e);}
+function onEnd(e){
+  e.preventDefault();
+  if(!isDrag||state!==S.AIM){isDrag=false;return;}
+  const ep=getPos(e);
+  const dx=ep.x-swipeStart.x,dy=ep.y-swipeStart.y;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist>10){
+    const maxD=80,power=Math.min(dist/maxD,1);
+    // Quadratic power curve: full force >> half force
+    const baseSpeed=mode===M.PRECISION?2.5:3;
+    const maxExtra=mode===M.PRECISION?5.5:9;
+    const speed=baseSpeed+power*power*maxExtra;
+    const nx=dx/dist,ny=dy/dist;
+    stone.vx=nx*speed;stone.vy=ny*speed;
+    stone.rolling=true;stone.scored=false;stone.hitStake=false;
+    rolls++; // increment immediately so display updates on launch
+    state=S.ROLLING;
+  }
+  isDrag=false;swipeStart=null;swipeEnd=null;
+}
+
+canvas.addEventListener('mousedown',onStart);
+canvas.addEventListener('mousemove',onMove);
+canvas.addEventListener('mouseup',onEnd);
+canvas.addEventListener('touchstart',onStart,{passive:false});
+canvas.addEventListener('touchmove',onMove,{passive:false});
+canvas.addEventListener('touchend',onEnd,{passive:false});
+
+gameLoop();
+</script>
+</body>
+</html>

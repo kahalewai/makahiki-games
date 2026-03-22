@@ -1,25 +1,42 @@
-# ʻUlu Maika — Makahiki Games
+# Makahiki Games - ʻUlu Maika
 
-A pixel-art browser game based on the traditional Hawaiian stone-rolling game played during the Makahiki harvest festival — a celebration of peace, community, and skills.
+<br>
 
-Roll the biconvex maika stone through the pahu hoku (stakes), or send it flying down the kahua maika course. Hear the crowd chant *"Ā ʻo ia!"* (Go for it!) and *"ʻOnipa'a!"* (Stay determined!) as your stone rolls. Learn the history of a game that King Kamehameha I played — one where thousands gathered and wagered everything on a single throw.
+## Intro
+
+ʻUlu Maika is a traditional Hawaiian game played during the Makahiki harvest festival, a celebration of peace, community, and skills. Although played for fun today, the game was traditionally played to test strength and accuracy. The stone is a biconvex disc, thick at the center, narrow at the edges, originally made from ʻulu (breadfruit), later from polished stone, coral, and lava. Courses (kahua maika) were engineered to stretch up to a mile, with smooth, hard-packed trenches sometimes featuring slight turns to challenge each player. Learn the history of a game that King Kamehameha I played, one where thousands gathered and wagered everything on a single throw.
+
+<br>
+
+This is a pixel-art browser game that brings two of the four historical playing methods to life:
+
+- Precision Mode - Roll the maika (stone) through the pahu hoku (stakes) without touching them, from thirty to forty yards away
+- Distance Mode - Roll the maika (stone) as far as possible down the kahua maika course
+
+<br>
 
 **[Play it now →](https://yourusername.github.io/ulu-maika/)** *(replace with your URL)*
 
+<br>
+
+## Why this was created
+
+I was discussing the Makahiki Games with my Keiki, and one of them said it should be a mobile game. So I decided to try a one-shot using AI (Anthropic Claude), and the game was born. The current version was created using 8 prompts (one to create, 7 to edit), about 30 minutes of effort. It was so easy, my Keiki can do it. And it was then, that I realized the true value of these efforts; Not only to spread Hawaiian Language and Culture, but also for our Keiki to learn how to use AI to build things.
+
+- Hawaiian Language - Keiki will learn Hawaiian Language (ʻŌlelo Hawaiʻi) as they play
+- Hawaiian Culture - Keiki will learn about the game, and how it is played
+- Technology - Keiki can experiment with Building the Game using AI (One Shot)
+
+Along with the game (which is a single HTML file that can be put anywhere), there is a SAD file in Markdown (.md). Build your own version of the game with your Keiki. Click on the SAD Document above, and copy everything to your Clipboard. Paste the SAD into an AI Interface (I used Claude, probably works with ChatGPT too), and follow the instructions at the end of the file. You and your Keiki can watch as AI builds you your own version of the game. If you want to change aspects of the game, update the SAD before pasting.
+
+<br>
+
 ## Screenshots
 
-*Coming soon*
+<img width="380" height="567" alt="ulu-maika1" src="https://github.com/user-attachments/assets/185e5089-d23f-4487-a19b-f461843d1d6b" />
 
-## About the Game
-
-ʻUlu Maika was a traditional Hawaiian stone-rolling game played during the Makahiki harvest festival to test strength and accuracy. The stone was a biconvex disc — thick at the center, narrow at the edges — originally made from ʻulu (breadfruit), later from polished stone, coral, and lava. Courses (kahua maika) were engineered to stretch up to a mile, with smooth, hard-packed trenches sometimes featuring slight turns to challenge each player.
-
-This game brings two of the four historical playing methods to life:
-
-- **Precision Mode** — Roll the maika (stone) through the pahu hoku (stakes) without touching them, from thirty to forty yards away
-- **Distance Mode** — Roll the maika (stone) as far as possible down the kahua maika course
-
-All scoring uses ʻŌlelo Hawaiʻi (Hawaiian language). Cultural "Did You Know?" facts appear between games, teaching players about the history behind what they're playing.
+<br>
+<br>
 
 ## Features
 
@@ -27,13 +44,15 @@ All scoring uses ʻŌlelo Hawaiʻi (Hawaiian language). Cultural "Did You Know?"
 - Hawaiian-language scoring with English subtitles
 - Animated pixel-art Hawaiian landscape (mountains, ocean, coconut palms, plumeria)
 - Crowd spectators that chant and wave during rolls
-- Perspective system — overpowered rolls recede toward the horizon instead of flying offscreen
+- Perspective system - overpowered rolls recede toward the horizon instead of flying offscreen
 - Biconvex stone with rotation physics and dust trail
 - Cultural fact screens between games
 - High score tracking
 - Traditional niho (tooth) triangle border pattern
 - Flick-to-roll touch and mouse controls
-- Fully responsive — works on any screen size
+- Fully responsive, works on any screen size
+
+<br>
 
 ## How to Play
 
@@ -43,9 +62,11 @@ All scoring uses ʻŌlelo Hawaiʻi (Hawaiian language). Cultural "Did You Know?"
 4. You get **5 rolls** per game
 5. After your rolls, you'll see a cultural fact and your final score with a rating from Keiki (beginner) to Aliʻi (chief)
 
-### Scoring — Precision Mode
+<br>
 
-| Result | Hawaiian | Points |
+### Scoring - Precision Mode
+
+| Result | ʻŌlelo Hawaiʻi | Points |
 |--------|----------|--------|
 | Perfect center | Poʻokela! | +100 |
 | Good pass | Maikaʻi loa! | +50 |
@@ -55,17 +76,23 @@ All scoring uses ʻŌlelo Hawaiʻi (Hawaiian language). Cultural "Did You Know?"
 | Too far | He keu! | 0 |
 | Too short | Hoʻohakalia! | 0 |
 
-### Scoring — Distance Mode
+<br>
 
-| Result | Hawaiian | Points |
+### Scoring - Distance Mode
+
+| Result | ʻŌlelo Hawaiʻi | Points |
 |--------|----------|--------|
 | 500+ feet | Pāʻani Maikaʻi! / Poʻokela! | distance ÷ 5 |
 | 250–500 feet | Maikaʻi loa! | distance ÷ 5 |
 | Under 250 feet | Hoʻohakalia! / Hana Hou! | distance ÷ 5 |
 
+<br>
+
 ## Quick Start
 
 No build step. No dependencies. It's a single HTML file.
+
+<br>
 
 ### Option 1: Open locally
 ```bash
@@ -73,13 +100,19 @@ git clone https://github.com/yourusername/ulu-maika.git
 open ulu-maika/ulu-maika.html
 ```
 
+<br>
+
 ### Option 2: Host it
 Upload `ulu-maika.html` to any web server, GitHub Pages, Netlify, or Vercel. Done.
+
+<br>
 
 ### Option 3: GitHub Pages
 1. Fork this repo
 2. Go to Settings → Pages → Source: main branch
 3. Your game is live at `https://yourusername.github.io/ulu-maika/`
+
+<br>
 
 ## Tech Stack
 
@@ -91,6 +124,8 @@ Upload `ulu-maika.html` to any web server, GitHub Pages, Netlify, or Vercel. Don
 
 The game runs at 320×480 internal resolution and scales responsively to any screen. Touch and mouse input both work identically.
 
+<br>
+
 ## Project Structure
 
 ```
@@ -101,17 +136,20 @@ ulu-maika/
 └── LICENSE              # Apache 2.0
 ```
 
+<br>
+
 ## Software Architecture Document
 
-The `ulu-maika-SAD.md` file contains a comprehensive specification of every game mechanic, screen design, physics value, color hex code, Hawaiian word, and technical decision. It is detailed enough to regenerate the entire game from scratch in a single AI-assisted session.
+The `ulu-maika-SAD.md` file contains a comprehensive specification of every game mechanic, screen design, physics value, color hex code, Hawaiian word, and technical decision. It is detailed enough to regenerate the entire game from scratch in a single AI-assisted session (one shot).
+
+<br>
 
 ## Hawaiian Language Reference
 
 ### Scoring Words
 
-| Hawaiian | Meaning | Context |
+| ʻŌlelo Hawaiʻi | Meaning | Context |
 |----------|---------|---------|
-| ʻUlu Maika | Breadfruit disc rolling | The game itself |
 | Poʻokela! | Perfect! | Perfect roll |
 | Pāʻani Maikaʻi! | Great Play! | Great play |
 | Maikaʻi loa! | Very Good! | Good roll |
@@ -125,23 +163,39 @@ The `ulu-maika-SAD.md` file contains a comprehensive specification of every game
 | Pau | Finished | Game over |
 | Pāʻani Hou! | Play again! | Restart prompt |
 
+<br>
+
 ### Crowd Chants
 
-| Hawaiian | Meaning |
+| ʻŌlelo Hawaiʻi | Meaning |
 |----------|---------|
 | Ā ʻo ia! | Go for it! |
 | ʻOnipa'a! | Stay determined! |
 
+<br>
+
 ### Game Terms
 
-| Hawaiian | Meaning |
+| ʻŌlelo Hawaiʻi | Meaning |
 |----------|---------|
 | Kahua Maika | The course/playing field |
 | Pahu hoku | The stakes/goal posts |
 | Maika | The stone disc |
 | Makahiki | Harvest festival season |
 
-## Roadmap
+<br>
+
+## Contributing
+
+Contributions welcome! Whether it's bug fixes, new mini-games, better pixel art, sound design, or cultural accuracy improvements, open a PR or issue. This game was built with respect for Hawaiian culture and the significance of the Makahiki season. The historical details, the kahua maika courses, the crowd energy, the wagering customs, come from documented historical sources. The goal is cultural preservation in a format people will engage with. If you have knowledge of Makahiki traditions and see something that could be more accurate, please open an issue. Mahalo. 
+
+<br>
+
+These efforts are not done! The goal is to create a mini-game for each game of the Makahiki Season, and eventually release the full Makahiki Games as a free mobile app on iOS and Android.
+
+<br>
+
+Roadmap
 
 - [ ] Language toggle (English ↔ Hawaiian)
 - [ ] Sound effects (Web Audio API)
@@ -151,40 +205,17 @@ The `ulu-maika-SAD.md` file contains a comprehensive specification of every game
 - [ ] Multiplayer leaderboard
 - [ ] Mobile app (iOS/Android via Capacitor)
 
-## Cultural Note
 
-This game was built with respect for Hawaiian culture and the significance of the Makahiki season. The historical details — the kahua maika courses, the crowd energy, the wagering customs — come from documented historical sources. The goal is cultural preservation in a format people will engage with.
-
-If you have knowledge of Makahiki traditions and see something that could be more accurate, please open an issue. Mahalo.
-
-## Contributing
-
-Contributions welcome! Whether it's bug fixes, new mini-games, better pixel art, sound design, or cultural accuracy improvements — open a PR or issue.
+<br>
 
 ## License
 
-```
-Copyright 2026 kahalewai
+Apache 2.0
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-```
+<br>
 
 ## Acknowledgments
 
 - Built iteratively with [Claude](https://claude.ai) by Anthropic
 - Cultural research sourced from historical documentation of Hawaiian games
-- Inspired by childhood memories of playing ʻUlu Maika at the Polynesian Cultural Center
-
----
-
-*Created by kahalewai*
+- Inspired by childhood memories of playing ʻUlu Maika at Kamehameha Explorations

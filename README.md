@@ -19,7 +19,7 @@ This is a pixel-art browser game that brings two of the four historical playing 
 
 <br>
 
-**[Play it now →](https://yourusername.github.io/ulu-maika/)** *(replace with your URL)*
+**[Play it now →](https://kahalewai.github.io/makahiki-games/ulu-maika.html)**
 
 <br>
 

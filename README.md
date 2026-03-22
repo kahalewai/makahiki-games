@@ -1,5 +1,9 @@
 # Makahiki Games - ʻUlu Maika
 
+![ʻŌlelo%20Hawaiʻi](https://img.shields.io/badge/ʻŌlelo%20Hawaiʻi-Yes!-blue)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-orange.svg)](LICENSE)
+![Version](https://img.shields.io/badge/version-1.0.0-green.svg)
+
 <br>
 
 ## Intro

@@ -14,7 +14,7 @@
 
 This is a pixel-art browser game that brings two of the four historical playing methods to life:
 
-- Precision Mode - Roll the maika (stone) through the pahu hoku (stakes) without touching them, from thirty to forty yards away
+- Precision Mode - Roll the maika (stone) through the pahu hoku (stakes) without touching them
 - Distance Mode - Roll the maika (stone) as far as possible down the kahua maika course
 
 <br>
